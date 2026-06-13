@@ -16,9 +16,23 @@ const OUT_DIR = join(ROOT, "public", "data")
 const API = "https://iptv-org.github.io/api"
 
 async function getJSON(path) {
-  const res = await fetch(`${API}/${path}`)
-  if (!res.ok) throw new Error(`Failed to fetch ${path}: ${res.status}`)
-  return res.json()
+  // Retry a few times with a timeout so transient CI network blips don't fail the build.
+  let lastErr
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const controller = new AbortController()
+      const timer = setTimeout(() => controller.abort(), 20000)
+      const res = await fetch(`${API}/${path}`, { signal: controller.signal })
+      clearTimeout(timer)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      return await res.json()
+    } catch (err) {
+      lastErr = err
+      console.warn(`[build-channels] fetch ${path} attempt ${attempt} failed: ${err.message}`)
+      await new Promise((r) => setTimeout(r, attempt * 1000))
+    }
+  }
+  throw lastErr
 }
 
 function parseM3U(content, countryCode) {
@@ -62,11 +76,20 @@ async function main() {
   const files = readdirSync(STREAMS_DIR).filter((f) => f.endsWith(".m3u"))
 
   console.log("[build-channels] Fetching iptv-org API metadata...")
-  const [apiChannels, logos, countries] = await Promise.all([
-    getJSON("channels.json"),
-    getJSON("logos.json"),
-    getJSON("countries.json"),
-  ])
+  let apiChannels = []
+  let logos = []
+  let countries = []
+  try {
+    ;[apiChannels, logos, countries] = await Promise.all([
+      getJSON("channels.json"),
+      getJSON("logos.json"),
+      getJSON("countries.json"),
+    ])
+  } catch (err) {
+    console.warn(
+      `[build-channels] API enrichment unavailable (${err.message}). Building from local playlists without enriched logos/categories.`,
+    )
+  }
 
   // channel id -> categories
   const catById = new Map()
@@ -155,5 +178,10 @@ async function main() {
 
 main().catch((err) => {
   console.error("[build-channels] Failed:", err)
+  // Never block a deploy: if a previously generated dataset is committed, fall back to it.
+  if (existsSync(join(OUT_DIR, "channels.json")) && existsSync(join(OUT_DIR, "meta.json"))) {
+    console.warn("[build-channels] Using existing committed dataset as fallback. Continuing build.")
+    process.exit(0)
+  }
   process.exit(1)
 })
