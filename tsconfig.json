@@ -1,20 +1,43 @@
 {
   "compilerOptions": {
-    "strict": true,
-    "target": "es2022",
-    "module": "nodeNext",
-    "moduleResolution": "nodeNext",
-    "typeRoots": [
-      "./scripts/types",
-      "./node_modules/@types"
+    "target": "ES2022",
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
     ],
-    "esModuleInterop": true
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "react-jsx",
+    "incremental": true,
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "paths": {
+      "@/*": [
+        "./*"
+      ]
+    }
   },
-  "ts-node": {
-    "esm": true,
-    "transpileOnly": true
-  },
-  "files": [
-    "node_modules/jest-expect-message/types/index.d.ts"
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "scripts",
+    "tests"
   ]
 }
